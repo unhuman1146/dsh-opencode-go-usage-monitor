@@ -184,7 +184,9 @@ export function apply(ctx) {
   }
 
   async function handler(req, res) {
-    if (!localRequest(req)) return sendJson(res, 403, { ok: false, error: 'forbidden' })
+    if (!localRequest(req)) {
+      return sendJson(res, 403, { ok: false, error: 'forbidden' })
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return sendJson(res, 405, { ok: false, error: 'method-not-allowed' })
     }

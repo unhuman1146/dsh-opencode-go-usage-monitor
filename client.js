@@ -268,11 +268,12 @@ window.__ModuleLoader__.load({
                 return {
                   ok: false,
                   error: 'HTTP ' + response.status,
+                  url: ROUTE,
                   message: (body && body.message) || '',
                 }
               }
               if (!body || typeof body !== 'object') {
-                return { ok: false, error: 'BAD_RESPONSE', message: '' }
+                return { ok: false, error: 'BAD_RESPONSE', url: ROUTE, message: '' }
               }
               return body
             }),
@@ -280,6 +281,7 @@ window.__ModuleLoader__.load({
         .catch((error) => ({
           ok: false,
           error: error && error.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK',
+          url: ROUTE,
           message: String((error && error.message) || error || ''),
         }))
         .finally(() => clearTimeout(timer))
@@ -550,6 +552,7 @@ window.__ModuleLoader__.load({
                 error: {
                   code: (result && result.error) || 'UNKNOWN',
                   message: (result && result.message) || '',
+                  url: (result && result.url) || ROUTE,
                 },
               }))
             }
@@ -635,7 +638,11 @@ window.__ModuleLoader__.load({
                 (view.status === 'stale' ? t('errorHint') + ' ' : '') +
                   (view.error.message || t('noData')),
               ),
-              h('span', { style: S.bannerCode }, view.error.code),
+              h(
+                'span',
+                { style: S.bannerCode },
+                view.error.code + (view.error.url ? ' · ' + view.error.url : ''),
+              ),
               h(
                 'button',
                 {
