@@ -1,0 +1,10 @@
+# dsh-opencode-go-usage-monitor bundle patch.
+#
+# One Host row mounts the package. The Host half serves one loopback route that
+# reads the OpenCode Go usage endpoint with the OPENCODE_GO_API_KEY credential;
+# the browser half only ever fetches that route, so the key never reaches the
+# page and the panel works from any open tab on loopback.
+- insert:
+    - id: opencode-go-usage-monitor
+      name: dsh-opencode-go-usage-monitor
+      config: {}

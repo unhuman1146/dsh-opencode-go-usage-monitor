@@ -1,0 +1,81 @@
+{
+  "name": "dsh-opencode-go-usage-monitor",
+  "version": "0.1.0",
+  "description": "OpenCode Go 套餐余量监控（DSH 插件）：独立全局面板显示 5h / 本周 / 本月剩余百分比、重置倒计时，并把摘要放进侧栏气泡；API key 只在宿主侧使用。",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "unhuman1146",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "opencode",
+    "opencode-go",
+    "usage",
+    "quota",
+    "monitor",
+    "dashboard"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unhuman1146/dsh-opencode-go-usage-monitor.git"
+  },
+  "homepage": "https://github.com/unhuman1146/dsh-opencode-go-usage-monitor#readme",
+  "bugs": {
+    "url": "https://github.com/unhuman1146/dsh-opencode-go-usage-monitor/issues"
+  },
+  "icon": "./icon.svg",
+  "meta": {
+    "title": "OpenCode Go 套餐余量",
+    "description": "独立面板 + 侧栏摘要：5h / 本周 / 本月剩余百分比与重置倒计时，走宿主代取，key 不进页面。"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "dsh": ">=0.2.0-rc.2 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    },
+    "catalog": {
+      "category": "ui",
+      "summary": {
+        "en": "OpenCode Go plan usage as an independent panel: 5h / weekly / monthly remaining percentages and reset countdowns, plus the same summary in the sidebar entry. The API key is resolved on the Host and never reaches the page.",
+        "zh": "OpenCode Go 套餐余量的独立面板：5h / 本周 / 本月剩余百分比与重置倒计时，侧栏条目同步显示摘要；API key 由宿主侧解析，不下发到页面。"
+      },
+      "capabilities": [
+        "credentials",
+        "webServer",
+        "slots",
+        "locale",
+        "layout"
+      ]
+    },
+    "compatibility": {
+      "dsh": ">=0.2.0-rc.2 <0.3.0",
+      "profiles": [
+        "web",
+        "desktop"
+      ],
+      "node": ">=20.18"
+    }
+  }
+}
