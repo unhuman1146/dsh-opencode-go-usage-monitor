@@ -46,16 +46,9 @@ dsh plugin --profile web add github:unhuman1146/dsh-opencode-go-usage-monitor
 GET /plugins/dsh-opencode-go-usage-monitor/usage[?fresh=1]
 ```
 
-Host 半按以下顺序解析 `OPENCODE_GO_API_KEY`：
+宿主读取模型设置中 `opencode-go` 的 `apiKeyEnv`。默认引用名为 `OPENCODE_GO_API_KEY`。若模型设置位于独立的 Agent 配置，且宿主无法读取它，可在本插件的 Host 行配置 `config.apiKeyEnv`，填入同一凭据引用名。宿主先查该名称的进程环境变量，再查 Harness 凭据服务。
 
-1. 进程环境变量 `OPENCODE_GO_API_KEY`
-2. Harness 凭据服务里的同名引用（「设置 → 模型」写入的就是这里）
-
-然后由 Host 带着 key 去请求 `opencode.ai`，只把归一化后的百分比返回给页面。插件：
-
-- 不发遥测、不写文件、不保存历史；
-- 路由只接受本机请求（桌面端还要求是该渲染进程）；
-- 只读查询，不消耗额度。
+路由要求本机连接和有效的 Harness 会话。宿主只向官方 HTTPS 用量接口发送凭据，拒绝重定向。页面收到用量摘要或固定错误提示。无效百分比与未知重置时间显示为「—」。插件只读查询，无遥测，用量快照仅保留在内存中。
 
 ## 安装 / 卸载
 
@@ -65,6 +58,8 @@ Host 半按以下顺序解析 `OPENCODE_GO_API_KEY`：
 - 改过 `client.js` 后需要让宿主重新发布该包的浏览器半：停用再启用一次 bundle（有 HMR 构建环境时会自动热更）。
 
 ## 开发
+
+运行 `npm test` 执行离线回归测试。若已安装 Harness，可运行 `node scripts/check-harness.mjs "<Harness 的 node_modules 路径>"` 测试真实会话和 HTTP 路由。该测试使用独立的内存凭据和模拟用量数据。
 
 ```
 package.json          dsh.bundle / dsh.client / dsh.catalog 清单
@@ -79,7 +74,6 @@ icon.svg              插件图标
 ## 已知限制
 
 - 上游只给百分比，没有金额、没有套餐名；`/zen/go/v1/balance`、`/v1/plan` 之类的路径都是 404。
-- 桌面端路由只接受该桌面渲染进程的请求，普通浏览器/curl 一律 403——这是桌面壳的安全策略，不是插件限制。
 - 没有历史曲线（只保留最近一次成功读取）。
 
 ## 排障：改了插件 id 或路由后必须**重启宿主**

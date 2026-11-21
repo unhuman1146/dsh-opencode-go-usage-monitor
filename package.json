@@ -1,6 +1,6 @@
 {
   "name": "dsh-opencode-go-usage-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenCode Go 套餐余量监控（DSH 插件）：独立全局面板显示 5h / 本周 / 本月剩余百分比、重置倒计时，并把摘要放进侧栏气泡；API key 只在宿主侧使用。",
   "type": "module",
   "main": "index.js",
@@ -64,6 +64,8 @@
       "capabilities": [
         "credentials",
         "webServer",
+        "connection",
+        "settings",
         "slots",
         "locale",
         "layout"
@@ -77,5 +79,8 @@
       ],
       "node": ">=20.18"
     }
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

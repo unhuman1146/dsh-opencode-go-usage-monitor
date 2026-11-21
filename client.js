@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react')
     const h = React.createElement
-    const { useState, useEffect, useRef, useCallback } = React
+    const { useState, useEffect } = React
 
     const PANEL_ID = 'dsh-opencode-go-usage-monitor'
     const NS = 'opencode-go-usage'
@@ -269,7 +269,7 @@ window.__ModuleLoader__.load({
                   ok: false,
                   error: 'HTTP ' + response.status,
                   url: ROUTE,
-                  message: (body && body.message) || '',
+                  message: '',
                 }
               }
               if (!body || typeof body !== 'object') {
@@ -282,7 +282,7 @@ window.__ModuleLoader__.load({
           ok: false,
           error: error && error.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK',
           url: ROUTE,
-          message: String((error && error.message) || error || ''),
+          message: '',
         }))
         .finally(() => clearTimeout(timer))
     }
@@ -295,15 +295,21 @@ window.__ModuleLoader__.load({
      * the newest answer. The panel publishes into it on every successful read, and
      * a background poller keeps it warm while the panel is closed.
      */
-    const shared = { latest: null, listeners: new Set() }
+    const shared = { latest: null, error: null, active: null, listeners: new Set() }
 
-    function publishLatest(result) {
-      shared.latest = result
+    function viewSnapshot() {
+      const { latest: data, error, active } = shared
+      const status = error ? (data ? 'stale' : 'error') : (data ? 'ready' : 'loading')
+      return { status, data, error, busy: active !== null, manualBusy: active?.fresh === true }
+    }
+
+    function notifyViews() {
+      const view = viewSnapshot()
       for (const listener of [...shared.listeners]) {
         try {
-          listener(result)
+          listener(view)
         } catch {
-          /* a listener must never stop the publisher */
+          /* A disposed slot must not prevent delivery to the panel. */
         }
       }
     }
@@ -329,19 +335,30 @@ window.__ModuleLoader__.load({
       return parts.join(' · ')
     }
 
-    /** One shared background read; a failure leaves the last good numbers alone. */
-    let sharedRead = null
+    // A manual read supersedes a pending cached read. Only the active request
+    // can publish data, errors, or completion to the panel and sidebar.
     function refreshLatest(fresh) {
-      if (sharedRead !== null) return sharedRead
-      sharedRead = fetchUsage(fresh)
-        .then((result) => {
-          if (result && result.ok && Array.isArray(result.windows)) publishLatest(result)
-          return result
-        })
-        .finally(() => {
-          sharedRead = null
-        })
-      return sharedRead
+      const active = shared.active
+      if (active && (!fresh || active.fresh)) return active.promise
+      const request = { fresh, promise: null }
+      shared.active = request
+      request.promise = fetchUsage(fresh).then((result) => {
+        if (shared.active !== request) return
+        shared.active = null
+        if (result?.ok && Array.isArray(result.windows)) {
+          shared.latest = result
+          shared.error = null
+        } else {
+          shared.error = {
+            code: result?.error || 'BAD_RESPONSE',
+            message: result?.message || '',
+            url: ROUTE,
+          }
+        }
+        notifyViews()
+      })
+      notifyViews()
+      return request.promise
     }
 
     /* ── formatting ─────────────────────────────────────────────────────────── */
@@ -426,12 +443,12 @@ window.__ModuleLoader__.load({
             { style: S.big },
             remaining === null ? '—' : String(Math.round(remaining)),
           ),
-          h('span', { style: S.bigUnit }, '%'),
+          remaining === null ? null : h('span', { style: S.bigUnit }, '%'),
           h('span', { style: S.usedLine }, t('used') + ' ' + (used === null ? '—' : Math.round(used) + '%')),
         ),
         h(
           'div',
-          { style: S.bar, className: 'dsum-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': used === null ? 0 : Math.round(used) },
+          { style: S.bar, className: 'dsum-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': used === null ? undefined : Math.round(used) },
           h('i', {
             style: {
               display: 'block',
@@ -446,7 +463,7 @@ window.__ModuleLoader__.load({
           'div',
           { style: S.footRow },
           h('span', null, t('resets') + ' ' + formatDateTime(resetsMs)),
-          h('span', null, formatRemaining(resetsMs - now, t)),
+          h('span', null, Number.isFinite(resetsMs) ? formatRemaining(resetsMs - now, t) : '—'),
         ),
       )
     }
@@ -511,64 +528,23 @@ window.__ModuleLoader__.load({
 
     function DashboardPage(props) {
       const { t, backToConversation } = props || {}
-      // A warm shared snapshot means the panel opens straight into numbers.
-      const [view, setView] = useState(() =>
-        shared.latest
-          ? { status: 'ready', data: shared.latest, error: null }
-          : { status: 'loading', data: null, error: null },
-      )
-      const [busy, setBusy] = useState(false)
-      const mountedRef = useRef(true)
+      const [view, setView] = useState(viewSnapshot)
+      const busy = view.busy
+      const manualBusy = view.manualBusy
 
       useEffect(() => {
-        mountedRef.current = true
-        return () => {
-          mountedRef.current = false
-        }
-      }, [])
-
-      // Background reads (and the panel's own refresh) share one publisher.
-      useEffect(
-        () =>
-          subscribeLatest((result) => {
-            if (mountedRef.current) setView({ status: 'ready', data: result, error: null })
-          }),
-        [],
-      )
-
-      const load = useCallback(
-        (fresh) => {
-          setBusy(true)
-          return fetchUsage(fresh).then((result) => {
-            if (!mountedRef.current) return
-            setBusy(false)
-            if (result && result.ok && Array.isArray(result.windows)) {
-              publishLatest(result)
-              setView({ status: 'ready', data: result, error: null })
-            } else {
-              setView((previous) => ({
-                status: previous.data ? 'stale' : 'error',
-                data: previous.data,
-                error: {
-                  code: (result && result.error) || 'UNKNOWN',
-                  message: (result && result.message) || '',
-                  url: (result && result.url) || ROUTE,
-                },
-              }))
-            }
-          })
-        },
-        [],
-      )
-
-      useEffect(() => {
-        load(false)
+        const unsubscribe = subscribeLatest(setView)
+        setView(viewSnapshot())
+        refreshLatest(false)
         const timer = setInterval(() => {
           if (typeof document !== 'undefined' && document.hidden) return
-          load(false)
+          refreshLatest(false)
         }, AUTO_REFRESH_MS)
-        return () => clearInterval(timer)
-      }, [load])
+        return () => {
+          unsubscribe()
+          clearInterval(timer)
+        }
+      }, [])
 
       const rows = view.data && Array.isArray(view.data.windows) ? view.data.windows : []
       const byId = {}
@@ -601,11 +577,11 @@ window.__ModuleLoader__.load({
               {
                 type: 'button',
                 className: 'dsum-btn',
-                style: { ...S.btn, ...(busy ? S.btnDisabled : null) },
+                style: { ...S.btn, ...(manualBusy ? S.btnDisabled : null) },
                 onClick: () => {
-                  if (!busy) load(true)
+                  refreshLatest(true)
                 },
-                disabled: busy,
+                disabled: manualBusy,
                 title: t('refresh'),
                 'aria-label': t('refresh'),
               },
@@ -649,7 +625,7 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   className: 'dsum-btn',
                   style: S.btn,
-                  onClick: () => load(true),
+                  onClick: () => refreshLatest(true),
                 },
                 t('retry'),
               ),
@@ -729,6 +705,7 @@ window.__ModuleLoader__.load({
          */
         ctx.effect(() => {
           const prime = setTimeout(() => {
+            if (typeof document !== 'undefined' && document.hidden) return
             refreshLatest(false)
           }, 1200)
           const timer = setInterval(() => {
